@@ -47,7 +47,7 @@ st.markdown("""
 
 # --- DEFINICIÓN DE LA ESTRUCTURA ---
 AGENTS_STRUCTURE = {
-    "LISTINGS (Sellers & Listing Agents)": ["Simon", "Bob", "Contract Max", "Ava", "Leo"],
+    "LISTINGS (Sellers & Listing Agents)": ["Simon-AI Home Valuation", "Bob", "Contract Max", "Ava", "Leo"],
     "BUYERS & CONVERSION": ["Marco", "Carmen", "Lexy", "Karina"],
     "LEAD GENERATION & PROSPECTING": ["Troy", "Karina"],
     "CONTRACTS, COMPLIANCE & TRANSACTIONS": ["Max", "Bob", "Amanda"],
@@ -296,3 +296,4 @@ if prompt := st.chat_input(f"Escribe a {selected_agent}..."):
 if len(st.session_state[f"history_{selected_agent}"]) == 0 and selected_agent == "Bob" and not uploaded_file_content:
 
     st.info("👋 Hola, soy Bob. Sube tu reporte de inspección en PDF en el menú lateral para comenzar.")
+

@@ -3,7 +3,7 @@ import os
 from datetime import datetime
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.schema import SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from pypdf import PdfReader # Nueva librería para Bob
 
 # Cargar variables de entorno
@@ -294,4 +294,5 @@ if prompt := st.chat_input(f"Escribe a {selected_agent}..."):
 
 # Mensaje de bienvenida si no hay historial y no hay archivo (Caso Bob vacío)
 if len(st.session_state[f"history_{selected_agent}"]) == 0 and selected_agent == "Bob" and not uploaded_file_content:
+
     st.info("👋 Hola, soy Bob. Sube tu reporte de inspección en PDF en el menú lateral para comenzar.")

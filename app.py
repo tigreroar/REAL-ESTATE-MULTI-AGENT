@@ -177,7 +177,7 @@ Bob must ALWAYS output the complete, numbered FULL Extraction List directly into
 # Diccionario de Roles
 AGENT_ROLES = {
     "Simon": SIMON_PROMPT,
-    "Bob": BOB_PROMPT
+    "Bob-Inspection Reviewer": BOB_PROMPT
 }
 
 # --- FUNCIONES DE UTILIDAD ---
@@ -204,7 +204,7 @@ with st.sidebar:
     
     # 📌 LÓGICA ESPECÍFICA PARA BOB: CARGA DE ARCHIVOS
     uploaded_file_content = None
-    if selected_agent == "Bob":
+    if selected_agent == "Bob-Inspection Reviewer":
         st.info("📂 Bob necesita el reporte de inspección.")
         uploaded_file = st.file_uploader("Sube el PDF de inspección", type=["pdf"])
         
@@ -242,7 +242,7 @@ for msg in st.session_state[f"history_{selected_agent}"]:
 
 # 1. CASO ESPECIAL: BOB + ARCHIVO SUBIDO (Trigger Automático)
 # Si es Bob, hay archivo, y es el primer mensaje o no se ha procesado aún:
-if selected_agent == "Bob" and uploaded_file_content and len(st.session_state[f"history_{selected_agent}"]) == 0:
+if selected_agent == "Bob-Inspection Reviewer" and uploaded_file_content and len(st.session_state[f"history_{selected_agent}"]) == 0:
     
     # Prompt inicial automático
     trigger_msg = "Here is the Home Inspection Report PDF content. Please start the analysis immediately as per your instructions."
@@ -257,7 +257,7 @@ if selected_agent == "Bob" and uploaded_file_content and len(st.session_state[f"
     # Generar respuesta de Bob
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        current_role = AGENT_ROLES.get("Bob")
+        current_role = AGENT_ROLES.get("Bob-Inspection Reviewer")
         
         # Inyectamos el contenido del PDF directamente en el mensaje
         messages_payload = [
@@ -293,8 +293,9 @@ if prompt := st.chat_input(f"Escribe a {selected_agent}..."):
     st.session_state[f"history_{selected_agent}"].append(AIMessage(content=response.content))
 
 # Mensaje de bienvenida si no hay historial y no hay archivo (Caso Bob vacío)
-if len(st.session_state[f"history_{selected_agent}"]) == 0 and selected_agent == "Bob" and not uploaded_file_content:
+if len(st.session_state[f"history_{selected_agent}"]) == 0 and selected_agent == "Bob-Inspection Reviewer" and not uploaded_file_content:
 
     st.info("👋 Hola, soy Bob. Sube tu reporte de inspección en PDF en el menú lateral para comenzar.")
+
 
 

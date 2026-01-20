@@ -109,17 +109,23 @@ def extract_text_from_pdf(uploaded_file):
     except Exception as e:
         return f"Error reading PDF: {e}"
 
-# --- FUNCIÓN DE BÚSQUEDA WEB PARA KARINA ---
+# --- FUNCIÓN DE BÚSQUEDA WEB PARA KARINA (VERSIÓN SEGURA) ---
 def perform_web_search(query):
     """Usa DuckDuckGo para buscar foros reales."""
-    search = DuckDuckGoSearchRun()
-    # Modificamos la query para forzar resultados de foros
-    enhanced_query = f"site:reddit.com OR site:quora.com OR site:biggerpockets.com OR site:city-data.com {query} real estate moving relocation"
     try:
+        # Importamos DENTRO de la función para atrapar el error si falla
+        from langchain_community.tools import DuckDuckGoSearchRun
+        search = DuckDuckGoSearchRun()
+        
+        enhanced_query = f"site:reddit.com OR site:quora.com OR site:biggerpockets.com OR site:city-data.com {query} real estate moving relocation"
         results = search.run(enhanced_query)
         return results
+        
+    except ImportError:
+        # ESTO EVITA LA PANTALLA ROJA
+        return "⚠️ AVISO: No se pudo conectar a internet (Falta librería duckduckgo-search). Karina usará su conocimiento interno."
     except Exception as e:
-        return f"Search Error: {e}"
+        return f"Error en la búsqueda: {e}"
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -239,3 +245,4 @@ if "Ava" in selected_agent and len(st.session_state[f"history_{selected_agent}"]
     st.info("👋 Hi, I'm Ava. Please provide the property details.")
 if "Karina" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
     st.info("👋 Hi, I'm Karina. Enter a City and State (e.g., 'Austin, TX') and I'll find REAL discussion threads for you!")
+

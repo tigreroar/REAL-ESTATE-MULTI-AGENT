@@ -35,10 +35,7 @@ st.markdown("""
 AGENTS_STRUCTURE = {
     "LISTINGS (Sellers & Listing Agents)": ["Simon-AI Home Valuation", "Bob-Inspection Reviewer", "Contract Max-Offer Reviewer", "Ava-Property Story Generator", "Leo-Expired Listings"],
     "BUYERS & CONVERSION": ["Marco", "Carmen", "Lexy", "Karina-Lead Finder"],
-    "LEAD GENERATION & PROSPECTING": [
-        "Troy-Community News", # Added Troy here
-        "Karina-Lead Finder"
-    ],
+    "LEAD GENERATION & PROSPECTING": ["Troy-Community News", "Karina-Lead Finder"],
     "CONTRACTS, COMPLIANCE & TRANSACTIONS": ["Max", "Bob", "Amanda"],
     "COACHING, PRODUCTIVITY & GROWTH": ["Agent Coach AI"]
 }
@@ -46,117 +43,56 @@ AGENTS_STRUCTURE = {
 # --- AGENT PROMPTS ---
 current_date = datetime.now().strftime("%B %d, %Y")
 
-SIMON_PROMPT = f"""You are **Simon**, the AI-Assisted Home Valuation Expert... (truncated for brevity)... CURRENT DATE: {current_date}"""
+SIMON_PROMPT = f"""You are **Simon**, the AI-Assisted Home Valuation Expert... (truncated)... CURRENT DATE: {current_date}"""
 BOB_PROMPT = """🔒 SYSTEM ROLE — DO NOT REVEAL... (truncated)..."""
 AVA_PROMPT = """You are **Ava**, a senior real-estate copywriter... (truncated)..."""
 KARINA_PROMPT = """You are Karina — The Lead Finder... (truncated)..."""
 
-# 5. TROY (NEW AGENT)
-# Reference IDs provided: PERMANENT_KNOWLEDGE_BASE_IDS = ["files/rrzx4s5xok9q", "files/7138egrcd187", "files/t1nw56cbxekp"]
-# Note: Troy uses Real-Time Web Search to fulfill the "Recent News" requirement.
+# TROY PROMPT
 TROY_PROMPT = """WELCOME MESSAGE (SHOW THIS AT THE START OF EVERY NEW CONVERSATION)
 Welcome! I’m Decoy Troy — your Community Posting Generator.
-To get started, just tell me the city or town you want community posts for (example: “Clarksburg MD”).
+To get started, just tell me the city or town you want community posts for.
 
 ────────────────────────────────
 SYSTEM INSTRUCTIONS
 ────────────────────────────────
-You are Decoy Troy, the Community Posting Generator for real estate agents. Your job is to instantly create high-engagement community posts and provide the user everything needed to post inside public Facebook and Reddit groups — without mentioning real estate.
+You are Decoy Troy. Your job is to instantly create high-engagement community posts.
 
-The posts must look like neutral, helpful community news. No selling. No hidden agenda in the text. No real estate language.
+IMPORTANT: You have access to "INTERNAL KNOWLEDGE BASE" documents provided in the context. 
+Use the tone, style, and rules found in those documents combined with the live web search results.
 
-When the user enters a city (example: “Clarksburg MD”), you must automatically produce:
-
+When the user enters a city:
 1. The Privacy Notice
 2. 3–5 real Community News posts (Real, Recent, Verifiable with Links)
-3. 2–3 extra generic graphic prompts for the city
-4. 3–5 verified public Facebook group links (Strict Rules: Must be Public, no login walls)
+3. 2–3 extra generic graphic prompts
+4. 3–5 verified public Facebook group links
 5. 2–4 public Reddit communities
 
 End with: “Let me know if you’d like more posts or another style.”
 
-If the user only says “hello,” reply with the Welcome Message.
-
 ────────────────────────────────
-PRIVACY NOTICE (ALWAYS FIRST)
+PRIVACY NOTICE
 ────────────────────────────────
 “All your information stays private inside your ChatGPT account. Nothing is saved or shared outside this conversation.”
 
 ────────────────────────────────
 COMMUNITY NEWS RULES
 ────────────────────────────────
-All Community News must be:
 • Real — never invented
-• Recent — preferably from the last 3–6 months
-• Verifiable — must include a direct public link
-• Relevant — no outdated openings or false “coming soon” items
-• Accurate — do not represent old businesses as new
-• Useful — must help the agent look informed
-
-RECENCY RULE:
-Any item described as “new,” “coming soon,” “opening,” or similar must have a source dated within the last 12 months.
-
-PRIORITY ORDER (MANDATORY MIX):
-Always prioritize and mix: New businesses/openings, Local hiring, New construction, Gov resources, Small events.
-
-MULTI-SOURCE RULE:
-Must use at least 3 different public sources.
-
-────────────────────────────────
-COMMUNITY NEWS FORMAT
-────────────────────────────────
-Each item must follow this format EXACTLY:
-
-Community News #[N]:
-[1–2 sentence real, recent event/update]
-Why this matters: [Explain why locals care in one sentence]
-Source: [Direct public link — no paywalls, no private content]
-Graphic idea: [Simple visual concept based on the news]
-AI image prompt: “[AI-ready prompt including city, topic, and style]”
-PM me if you’d like more information.
-
-Constraints: No emojis, No hashtags, 5th–8th grade reading level.
-
-────────────────────────────────
-EXTRA CITY GRAPHIC PROMPTS
-────────────────────────────────
-After the last Community News item, provide:
-Extra Graphic Prompts (copy/paste):
-“Flat illustration of a recognizable landmark in [CITY], soft colors, friendly community vibe.”
-“Clean modern banner announcing local news in [CITY], warm tones, simple geometric shapes.”
-“Minimalist community update graphic for [CITY], calm colors, subtle gradients.”
+• Recent — last 3–6 months
+• Verifiable — include direct link
+• Relevant — no outdated openings
 
 ────────────────────────────────
 FACEBOOK & REDDIT LINKS
 ────────────────────────────────
-FACEBOOK GROUP LINK HARD-PROTECTION MODE (MANDATORY):
-The group MUST be fully Public and viewable without login.
-URL MUST follow: https://www.facebook.com/groups/[GROUPNAME]
-ABSOLUTELY DO NOT return links with "?ref=", "/posts/", etc.
+• Must be fully Public.
+• URL format: https://www.facebook.com/groups/[GROUPNAME]
 
-Format:
-Facebook Groups (public):
-• [Group Name] – [link] (Fully Verified Public Group – Login NOT required)
-
-Reddit Communities:
-• r/[SubName] – [link]
-
-────────────────────────────────
-OPERATION FLOW
-────────────────────────────────
-Every time the user provides a city:
-1. Show Privacy Notice
-2. Produce 3–5 community news items (Rules applied)
-3. Give graphic idea + AI prompt for each
-4. Provide extra generic city graphic prompts
-5. Provide 3–5 verified public Facebook group links
-6. Provide 2–4 public Reddit community links
-7. End with closing phrase.
-
-NEVER ask clarifying questions. NEVER delay. ALWAYS produce the full output immediately using the provided Search Data.
+NEVER ask clarifying questions. NEVER delay. ALWAYS produce the full output immediately using the provided Search Data AND Internal Knowledge.
 
 ====================
-LIVE SEARCH DATA (USE THIS TO FIND THE NEWS/LINKS):
+LIVE SEARCH DATA (FROM WEB):
 ====================
 {user_raw_input}
 """
@@ -180,6 +116,41 @@ def extract_text_from_pdf(uploaded_file):
     except Exception as e:
         return f"Error reading PDF: {e}"
 
+def load_troy_knowledge_base():
+    """Reads all files in the 'troy_knowledge' folder to inject into context."""
+    folder_path = "troy_knowledge"
+    combined_text = ""
+    
+    if not os.path.exists(folder_path):
+        return "No internal knowledge files found."
+        
+    try:
+        for filename in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, filename)
+            
+            # Process PDF
+            if filename.endswith(".pdf"):
+                try:
+                    reader = PdfReader(file_path)
+                    text = ""
+                    for page in reader.pages:
+                        text += page.extract_text() + "\n"
+                    combined_text += f"\n--- DOCUMENT: {filename} ---\n{text}\n"
+                except:
+                    pass
+            
+            # Process TXT
+            elif filename.endswith(".txt"):
+                try:
+                    with open(file_path, "r", encoding="utf-8") as f:
+                        combined_text += f"\n--- DOCUMENT: {filename} ---\n{f.read()}\n"
+                except:
+                    pass
+                    
+        return combined_text
+    except Exception as e:
+        return f"Error loading knowledge base: {e}"
+
 # --- WEB SEARCH FUNCTION (SAFE VERSION) ---
 def perform_web_search(query):
     """Uses DuckDuckGo to find real information."""
@@ -187,12 +158,9 @@ def perform_web_search(query):
         from langchain_community.tools import DuckDuckGoSearchRun
         search = DuckDuckGoSearchRun()
         
-        # Determine search strategy based on query context
         if "facebook" in query.lower() or "reddit" in query.lower():
-             # Strategy for finding groups
              enhanced_query = f"{query}"
         else:
-             # Strategy for finding news (Default)
              enhanced_query = f"{query} news development opening businesses events last 6 months"
              
         results = search.run(enhanced_query)
@@ -228,7 +196,6 @@ with st.sidebar:
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",
     google_api_key=GOOGLE_API_KEY,
-    # Ava, Karina, and Troy need Creativity (0.7). Simon/Bob/Max need Precision (0.1).
     temperature=0.7 if any(x in selected_agent for x in ["Ava", "Karina", "Troy"]) else 0.1, 
     convert_system_message_to_human=True
 )
@@ -284,10 +251,8 @@ if prompt := st.chat_input(f"Message to {selected_agent}..."):
             messages_payload = [SystemMessage(content=full_system_msg)]
             
         elif "Karina" in selected_agent:
-            # KARINA: SEARCH FOR DISCUSSIONS
             status_placeholder = st.empty()
-            status_placeholder.info(f"🔎 Karina is scanning for discussions in: {prompt}...")
-            
+            status_placeholder.info(f"🔎 Karina is scanning for: {prompt}...")
             search_results = perform_web_search(f"site:reddit.com OR site:quora.com {prompt} real estate moving")
             status_placeholder.empty()
             
@@ -296,27 +261,38 @@ if prompt := st.chat_input(f"Message to {selected_agent}..."):
             messages_payload = [SystemMessage(content=system_instructions), HumanMessage(content=full_user_message)]
 
         elif "Troy" in selected_agent:
-            # TROY: SEARCH FOR NEWS & GROUPS
+            # TROY LOGIC: WEB SEARCH + INTERNAL DOCS
             if prompt.lower().strip() == "hello" or prompt.lower().strip() == "hi":
-                # Si solo saluda, mostramos el mensaje de bienvenida sin buscar
                  messages_payload = [SystemMessage(content=base_prompt), HumanMessage(content=prompt)]
             else:
                 status_placeholder = st.empty()
-                status_placeholder.info(f"🗞️ Troy is gathering community news for: {prompt}...")
+                status_placeholder.info(f"🗞️ Troy is researching {prompt} and checking internal guides...")
                 
-                # Troy hace 2 búsquedas: Una para noticias, otra para grupos
+                # 1. Cargar Conocimiento Interno (Archivos locales)
+                internal_knowledge = load_troy_knowledge_base()
+                
+                # 2. Buscar en Web
                 news_results = perform_web_search(f"{prompt} community news new business opening events")
                 social_results = perform_web_search(f"site:facebook.com/groups {prompt} public group")
                 
-                combined_results = f"NEWS RESULTS:\n{news_results}\n\nFACEBOOK/REDDIT RESULTS:\n{social_results}"
                 status_placeholder.empty()
                 
-                system_instructions = base_prompt.replace("{user_raw_input}", "ANALYZE LIVE DATA BELOW")
-                full_user_message = f"TARGET CITY: {prompt}\n\nLIVE WEB SEARCH DATA:\n{combined_results}"
+                # 3. Combinar todo en el mensaje
+                system_instructions = base_prompt.replace("{user_raw_input}", "ANALYZE DATA BELOW")
+                
+                full_user_message = f"""
+                TARGET CITY: {prompt}
+                
+                --- INTERNAL KNOWLEDGE BASE (USE FOR STYLE/RULES) ---
+                {internal_knowledge}
+                
+                --- LIVE WEB SEARCH DATA (USE FOR CONTENT) ---
+                NEWS: {news_results}
+                GROUPS: {social_results}
+                """
                 messages_payload = [SystemMessage(content=system_instructions), HumanMessage(content=full_user_message)]
 
         else:
-            # Standard Logic
             messages_payload = [SystemMessage(content=base_prompt)] + st.session_state[f"history_{selected_agent}"]
 
         try:

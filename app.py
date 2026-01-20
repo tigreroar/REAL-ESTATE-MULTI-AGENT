@@ -208,21 +208,33 @@ if prompt := st.chat_input(f"Message to {selected_agent}..."):
             
         elif "Karina" in selected_agent:
             # --- LÓGICA ESPECIAL DE KARINA: BÚSQUEDA WEB REAL ---
-            # 1. Avisamos al usuario que estamos buscando
             status_placeholder = st.empty()
             status_placeholder.info(f"🔎 Karina is scanning the web for: {prompt}...")
             
-            # 2. Ejecutamos la búsqueda real con DuckDuckGo
+            # 1. Ejecutamos la búsqueda
             search_results = perform_web_search(prompt)
+            status_placeholder.empty()
             
-            status_placeholder.empty() # Limpiamos el mensaje de "buscando"
+            # 2. Preparamos el Prompt del Sistema (Instrucciones)
+            # Reemplazamos el placeholder para que no quede texto suelto
+            system_instructions = base_prompt.replace("{user_raw_input}", "PLEASE ANALYZE THE USER INPUT BELOW.")
             
-            # 3. Inyectamos los RESULTADOS REALES en el prompt
-            # Así Karina no inventa, sino que usa lo que DuckDuckGo encontró
-            combined_input = f"USER SEARCH QUERY: {prompt}\n\nREAL TIME WEB SEARCH RESULTS (Use these for Permalinks):\n{search_results}"
-            full_system_msg = base_prompt.replace("{user_raw_input}", combined_input)
+            # 3. Construimos el Mensaje del Usuario (Con la data real)
+            # AQUÍ ESTÁ EL ARREGLO: Ponemos los resultados en el HumanMessage, no solo en el System.
+            full_user_message = f"""
+            MY SEARCH QUERY: {prompt}
             
-            messages_payload = [SystemMessage(content=full_system_msg)]
+            REAL TIME WEB SEARCH RESULTS FOUND:
+            {search_results}
+            
+            Please find the leads based on these results.
+            """
+            
+            # 4. Enviamos AMBOS mensajes (Sistema + Humano) para que Gemini no falle
+            messages_payload = [
+                SystemMessage(content=system_instructions),
+                HumanMessage(content=full_user_message)
+            ]
             
         else:
             # Simon, Bob follow-up, others
@@ -245,4 +257,5 @@ if "Ava" in selected_agent and len(st.session_state[f"history_{selected_agent}"]
     st.info("👋 Hi, I'm Ava. Please provide the property details.")
 if "Karina" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
     st.info("👋 Hi, I'm Karina. Enter a City and State (e.g., 'Austin, TX') and I'll find REAL discussion threads for you!")
+
 

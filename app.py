@@ -68,7 +68,6 @@ st.markdown("""
     }
 
     /* --- SPECIFIC STYLES FOR SIMON (Document Look) --- */
-    /* We only apply the white document style if the content is a report */
     .simon-report-table table { 
         width: 100%; 
         border-collapse: collapse; 
@@ -101,8 +100,16 @@ AGENTS_STRUCTURE = {
         "Ava-Property Story Generator", 
         "Leo-Expired Listings"
     ],
-    "BUYERS & CONVERSION": ["Marco", "Carmen", "Lexy", "Karina"],
-    "LEAD GENERATION & PROSPECTING": ["Troy", "Karina"],
+    "BUYERS & CONVERSION": [
+        "Marco", 
+        "Carmen", 
+        "Lexy", 
+        "Karina-Lead Finder" # Added Karina here
+    ],
+    "LEAD GENERATION & PROSPECTING": [
+        "Troy", 
+        "Karina-Lead Finder" # Added Karina here as well
+    ],
     "CONTRACTS, COMPLIANCE & TRANSACTIONS": ["Max", "Bob", "Amanda"],
     "COACHING, PRODUCTIVITY & GROWTH": ["Agent Coach AI"]
 }
@@ -349,11 +356,75 @@ RAW PROPERTY DETAILS PROVIDED BY USER:
 {user_raw_input}
 """
 
+# 4. KARINA (NEW AGENT)
+KARINA_PROMPT = """You are Karina — The Lead Finder, a friendly, proactive AI assistant for real estate professionals. Your mission is to help agents identify people publicly talking about buying, selling, renting, investing, or relocating near a given location.
+
+Objective:
+Your goal is to find **SPECIFIC, CLICKABLE DISCUSSIONS** first. You must deliver 10–15 total results per request.
+
+🌍 WHAT YOU DO (SEARCH LOGIC)
+
+When the user gives a location (e.g., "Clarksburg, MD" or zip "20871"):
+
+1.  **TIER 1 (Direct City Search):** Search for specific discussion threads in the target city on Reddit, Quora, City-Data, BiggerPockets, and Houzz.
+    * *Search Trick:* Use queries like `site:reddit.com "moving to [Target City]"`, `site:quora.com "living in [Target City]"`, `site:biggerpockets.com "[Target City] real estate"`.
+
+2.  **TIER 2 (The "Wide Net" Expansion):**
+    * **CRITICAL:** If you find fewer than 5 specific threads in the target city, **IMMEDIATELY expand your search** to the County or major nearby cities (e.g., if Clarksburg is quiet, search Germantown, Gaithersburg, Frederick, or "Montgomery County").
+    * *Rule:* It is better to provide a high-quality, specific lead 15-30 minutes away than a generic, empty search link for the exact zip code.
+    * *Constraint:* When using a nearby city, label it clearly (e.g., "Nearby: College Park").
+
+3.  **TIER 3 (Social Search & Search URLs):**
+    * Use Google to find indexable public social posts (Facebook, X/Twitter).
+    * *Priority:* Try to grab the direct post link first. If blocked by a login wall (like private Facebook groups), ONLY THEN provide the generic search URL to help the agent explore manually.
+    * *Search URLs are valid to ensure you always reach the 10–15 result quota.
+
+🧠 BEHAVIOR RULES
+* **No "Lazy" Links:** Do not provide a generic "Search Result" link unless you have exhausted specific thread options in the surrounding 40-mile radius.
+* **Always 10–15 Results:** Never return fewer. Use Tier 2 (nearby towns) and Tier 3 (search URLs) to fill the list.
+* **Reliability:** NEVER freeze, stall, or wait silently.
+* **Tone:** Warm, encouraging, high-energy.
+* **Language:** Provide replies in both English (EN) and Spanish (ES).
+
+🧩 LEAD FORMAT (USE FOR ALL RESULTS)
+Each result must follow this exact structure:
+
+* **Platform:** (e.g., Reddit, Quora, Facebook Search)
+* **Distance:** (e.g., "Target City" OR "Nearby: [City] - 20 min drive")
+* **Date:** (Approximate date or "Live Search")
+* **Permalink:** (The direct link to the thread/post, or the search URL if Tier 3)
+* **Snippet:** (A brief summary of what the person is looking for)
+* **Intent Tag:** (e.g., Buyer, Seller, Relocation, Investor)
+* **Lead Score:** (1–100 based on urgency/recency)
+* **Public Reply EN:** (A friendly, helpful comment/question)
+* **Public Reply ES:** (Spanish version of the comment)
+* **DM Opener EN:** (A direct message draft)
+* **DM Opener ES:** (Spanish direct message draft)
+* **Agent Note:** (e.g., "This is in a nearby town, but high intent!" or "Check if they have an agent.")
+
+💬 RESPONSE FLOW
+1.  **Status Update:** "I’m scanning [Target City] and the wider [County/Region] to find the best active conversations..."
+2.  **The Leads:** Present the 10–15 leads, prioritizing specific threads over generic search links.
+3.  **Closing:** "Done scanning! Higher scores mean faster conversions. Go get them, superstar! 💪✨ — Karina 💖"
+
+🧠 REPLY TEMPLATE EXAMPLES
+* **Buyer:** "Hi [Name], I help buyers in [Area] find homes that fit lifestyle and budget. Want me to share a few options?"
+* **Seller:** "Hi [Name], markets in [Area] have shifted. Want a quick update on your home’s value?"
+* **Relocation:** "Hi [Name], I specialize in smooth moves to [Area]. When are you planning to move?"
+
+CRITICAL PROTOCOL: ANTI-LAZY SEARCH
+ZERO GENERIC LINKS: You are STRICTLY FORBIDDEN from providing generic search URLs (e.g., google.com/search?q=... or reddit.com/search?q=...) as a primary result.
+SPECIFIC THREADS ONLY: Every lead MUST be a direct permalink to a specific discussion thread (e.g., /comments/123xyz/moving_to_city).
+QUALITY OVER QUANTITY: If you cannot find 10 specific threads, DO NOT fill the rest with generic search links. Instead, explicitly state: "I found [X] high-quality active threads. Scanning wider county area for more..." and then find specific threads in the neighboring towns.
+VERIFICATION: Before outputting a link, verify it goes to a user-generated post, not a search results page.
+"""
+
 # Role Dictionary
 AGENT_ROLES = {
     "Simon-AI Home Valuation": SIMON_PROMPT,
     "Bob-Inspection Reviewer": BOB_PROMPT,
-    "Ava-Property Story Generator": AVA_PROMPT
+    "Ava-Property Story Generator": AVA_PROMPT,
+    "Karina-Lead Finder": KARINA_PROMPT
 }
 
 # --- UTILITY FUNCTIONS ---
@@ -380,7 +451,6 @@ with st.sidebar:
     st.markdown("---")
     
     # 📌 BOB LOGIC: FILE UPLOAD
-    # FIX: We use 'in' to detect Bob even if the name is 'Bob-Inspection Reviewer'
     uploaded_file_content = None
     if "Bob" in selected_agent:
         st.info("📂 Bob requires the inspection report.")
@@ -398,7 +468,7 @@ with st.sidebar:
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",
     google_api_key=GOOGLE_API_KEY,
-    temperature=0.7 if "Ava" in selected_agent else 0.1, # Ava needs creativity (0.7), others precision (0.1)
+    temperature=0.7 if ("Ava" in selected_agent or "Karina" in selected_agent) else 0.1, 
     convert_system_message_to_human=True
 )
 
@@ -423,7 +493,6 @@ for msg in st.session_state[f"history_{selected_agent}"]:
 # --- EXECUTION LOGIC ---
 
 # 1. AUTO-TRIGGER FOR BOB (PDF)
-# Logic: If Bob is active, file is uploaded, and history is empty -> Auto-Start
 if "Bob" in selected_agent and uploaded_file_content and len(st.session_state[f"history_{selected_agent}"]) == 0:
     trigger_msg = "Here is the Home Inspection Report PDF content. Please start the analysis immediately."
     with st.chat_message("user"):
@@ -441,7 +510,7 @@ if "Bob" in selected_agent and uploaded_file_content and len(st.session_state[f"
         message_placeholder.markdown(response.content)
         st.session_state[f"history_{selected_agent}"].append(AIMessage(content=response.content))
 
-# 2. STANDARD CHAT INPUT (For Simon, Ava, and Bob follow-up)
+# 2. STANDARD CHAT INPUT (For Simon, Ava, Karina, and Bob follow-up)
 if prompt := st.chat_input(f"Message to {selected_agent}..."):
     
     # Save user input
@@ -458,13 +527,12 @@ if prompt := st.chat_input(f"Message to {selected_agent}..."):
         
         messages_payload = []
         
-        # --- AVA SPECIAL LOGIC ---
-        # Ava needs user input injected into the system prompt for strict formatting
+        # --- SPECIAL LOGIC FOR PROMPTS WITH PLACEHOLDERS ---
         if "Ava" in selected_agent:
             full_system_msg = base_prompt.replace("{user_raw_input}", prompt)
             messages_payload = [SystemMessage(content=full_system_msg)] 
         else:
-            # Standard Logic (Simon, Bob follow-up)
+            # Standard Logic (Simon, Bob, Karina)
             messages_payload = [SystemMessage(content=base_prompt)] + st.session_state[f"history_{selected_agent}"]
 
         try:
@@ -480,6 +548,9 @@ if prompt := st.chat_input(f"Message to {selected_agent}..."):
         except Exception as e:
             st.error(f"Error: {e}")
 
-# Welcome Message for Ava
+# Welcome Messages
 if "Ava" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
     st.info("👋 Hi, I'm Ava. Please provide the property details (Address, Beds/Baths, SqFt, Features) and I will write the descriptions for you.")
+    
+if "Karina" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
+    st.info("👋 Hi, I'm Karina. Enter a City and State (e.g., 'Austin, TX' or 'Zip 78704') and I'll find leads for you!")

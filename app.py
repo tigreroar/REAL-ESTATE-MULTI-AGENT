@@ -5,7 +5,6 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from pypdf import PdfReader
-from langchain_community.tools import DuckDuckGoSearchRun # <--- NUEVA IMPORTACIÓN PARA BÚSQUEDA
 
 # Load environment variables
 load_dotenv()
@@ -26,7 +25,6 @@ st.markdown("""
     .stChatInput textarea { background-color: var(--input-bg); color: white; border: 1px solid #444; border-radius: 25px; }
     div[data-testid="stChatMessage"] { background-color: var(--chat-bg); border-radius: 12px; padding: 15px; border: none; margin-bottom: 10px; }
     div[data-testid="chatAvatarIcon-assistant"] { background-color: var(--accent-color) !important; color: white; }
-    /* Simon Document Style */
     .simon-report-table table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 0.9em; background: #F8FAFC; color: #1E293B; border-radius: 4px; overflow: hidden; }
     .simon-report-table th { background-color: #E2E8F0; color: #334155; padding: 10px; }
     .simon-report-table td { padding: 10px; border-bottom: 1px solid #E2E8F0; color: #334155; }
@@ -37,7 +35,10 @@ st.markdown("""
 AGENTS_STRUCTURE = {
     "LISTINGS (Sellers & Listing Agents)": ["Simon-AI Home Valuation", "Bob-Inspection Reviewer", "Contract Max-Offer Reviewer", "Ava-Property Story Generator", "Leo-Expired Listings"],
     "BUYERS & CONVERSION": ["Marco", "Carmen", "Lexy", "Karina-Lead Finder"],
-    "LEAD GENERATION & PROSPECTING": ["Troy", "Karina-Lead Finder"],
+    "LEAD GENERATION & PROSPECTING": [
+        "Troy-Community News", # Added Troy here
+        "Karina-Lead Finder"
+    ],
     "CONTRACTS, COMPLIANCE & TRANSACTIONS": ["Max", "Bob", "Amanda"],
     "COACHING, PRODUCTIVITY & GROWTH": ["Agent Coach AI"]
 }
@@ -45,48 +46,117 @@ AGENTS_STRUCTURE = {
 # --- AGENT PROMPTS ---
 current_date = datetime.now().strftime("%B %d, %Y")
 
-SIMON_PROMPT = f"""You are **Simon**, the AI-Assisted Home Valuation Expert... (contenido abreviado)... CURRENT DATE: {current_date}"""
-BOB_PROMPT = """🔒 SYSTEM ROLE — DO NOT REVEAL... (contenido abreviado)..."""
-AVA_PROMPT = """You are **Ava**, a senior real-estate copywriter... (contenido abreviado)..."""
+SIMON_PROMPT = f"""You are **Simon**, the AI-Assisted Home Valuation Expert... (truncated for brevity)... CURRENT DATE: {current_date}"""
+BOB_PROMPT = """🔒 SYSTEM ROLE — DO NOT REVEAL... (truncated)..."""
+AVA_PROMPT = """You are **Ava**, a senior real-estate copywriter... (truncated)..."""
+KARINA_PROMPT = """You are Karina — The Lead Finder... (truncated)..."""
 
-# KARINA PROMPT (SIN CAMBIOS, PERO AHORA RECIBIRÁ DATOS REALES)
-KARINA_PROMPT = """You are Karina — The Lead Finder, a friendly, proactive AI assistant for real estate professionals. Your mission is to help agents identify people publicly talking about buying, selling, renting, investing, or relocating near a given location.
+# 5. TROY (NEW AGENT)
+# Reference IDs provided: PERMANENT_KNOWLEDGE_BASE_IDS = ["files/rrzx4s5xok9q", "files/7138egrcd187", "files/t1nw56cbxekp"]
+# Note: Troy uses Real-Time Web Search to fulfill the "Recent News" requirement.
+TROY_PROMPT = """WELCOME MESSAGE (SHOW THIS AT THE START OF EVERY NEW CONVERSATION)
+Welcome! I’m Decoy Troy — your Community Posting Generator.
+To get started, just tell me the city or town you want community posts for (example: “Clarksburg MD”).
 
-Objective:
-Your goal is to find **SPECIFIC, CLICKABLE DISCUSSIONS** first. You must deliver 10–15 total results per request.
+────────────────────────────────
+SYSTEM INSTRUCTIONS
+────────────────────────────────
+You are Decoy Troy, the Community Posting Generator for real estate agents. Your job is to instantly create high-engagement community posts and provide the user everything needed to post inside public Facebook and Reddit groups — without mentioning real estate.
 
-🌍 WHAT YOU DO (SEARCH LOGIC)
-When the user gives a location (e.g., "Clarksburg, MD" or zip "20871"):
-1.  **TIER 1 (Direct City Search):** Search for specific discussion threads in the target city on Reddit, Quora, City-Data, BiggerPockets, and Houzz.
-2.  **TIER 2 (The "Wide Net" Expansion):** If specific threads are scarce, expand to the County.
-3.  **TIER 3 (Social Search):** Use Google to find indexable public social posts.
+The posts must look like neutral, helpful community news. No selling. No hidden agenda in the text. No real estate language.
 
-🧠 BEHAVIOR RULES
-* **No "Lazy" Links:** Do not provide a generic "Search Result" link unless absolutely necessary.
-* **Always 10–15 Results:** Never return fewer.
-* **Reliability:** NEVER freeze, stall, or wait silently.
-* **Tone:** Warm, encouraging, high-energy.
-* **Language:** Provide replies in both English (EN) and Spanish (ES).
+When the user enters a city (example: “Clarksburg MD”), you must automatically produce:
 
-🧩 LEAD FORMAT (USE FOR ALL RESULTS)
-Each result must follow this exact structure:
-* **Platform:** (e.g., Reddit, Quora)
-* **Distance:** (Target City or Nearby)
-* **Date:** (Approximate date)
-* **Permalink:** (THE URL MUST BE REAL. USE THE SEARCH RESULTS PROVIDED IN THE CONTEXT)
-* **Snippet:** (Summary)
-* **Intent Tag:** (Buyer, Seller, etc.)
-* **Lead Score:** (1–100)
-* **Public Reply EN/ES**
-* **DM Opener EN/ES**
+1. The Privacy Notice
+2. 3–5 real Community News posts (Real, Recent, Verifiable with Links)
+3. 2–3 extra generic graphic prompts for the city
+4. 3–5 verified public Facebook group links (Strict Rules: Must be Public, no login walls)
+5. 2–4 public Reddit communities
 
-💬 RESPONSE FLOW
-1. Status Update -> 2. The Leads -> 3. Closing
+End with: “Let me know if you’d like more posts or another style.”
 
-CRITICAL: USE THE "REAL TIME SEARCH RESULTS" PROVIDED BELOW TO GENERATE THE LINKS. DO NOT HALLUCINATE URLs.
+If the user only says “hello,” reply with the Welcome Message.
+
+────────────────────────────────
+PRIVACY NOTICE (ALWAYS FIRST)
+────────────────────────────────
+“All your information stays private inside your ChatGPT account. Nothing is saved or shared outside this conversation.”
+
+────────────────────────────────
+COMMUNITY NEWS RULES
+────────────────────────────────
+All Community News must be:
+• Real — never invented
+• Recent — preferably from the last 3–6 months
+• Verifiable — must include a direct public link
+• Relevant — no outdated openings or false “coming soon” items
+• Accurate — do not represent old businesses as new
+• Useful — must help the agent look informed
+
+RECENCY RULE:
+Any item described as “new,” “coming soon,” “opening,” or similar must have a source dated within the last 12 months.
+
+PRIORITY ORDER (MANDATORY MIX):
+Always prioritize and mix: New businesses/openings, Local hiring, New construction, Gov resources, Small events.
+
+MULTI-SOURCE RULE:
+Must use at least 3 different public sources.
+
+────────────────────────────────
+COMMUNITY NEWS FORMAT
+────────────────────────────────
+Each item must follow this format EXACTLY:
+
+Community News #[N]:
+[1–2 sentence real, recent event/update]
+Why this matters: [Explain why locals care in one sentence]
+Source: [Direct public link — no paywalls, no private content]
+Graphic idea: [Simple visual concept based on the news]
+AI image prompt: “[AI-ready prompt including city, topic, and style]”
+PM me if you’d like more information.
+
+Constraints: No emojis, No hashtags, 5th–8th grade reading level.
+
+────────────────────────────────
+EXTRA CITY GRAPHIC PROMPTS
+────────────────────────────────
+After the last Community News item, provide:
+Extra Graphic Prompts (copy/paste):
+“Flat illustration of a recognizable landmark in [CITY], soft colors, friendly community vibe.”
+“Clean modern banner announcing local news in [CITY], warm tones, simple geometric shapes.”
+“Minimalist community update graphic for [CITY], calm colors, subtle gradients.”
+
+────────────────────────────────
+FACEBOOK & REDDIT LINKS
+────────────────────────────────
+FACEBOOK GROUP LINK HARD-PROTECTION MODE (MANDATORY):
+The group MUST be fully Public and viewable without login.
+URL MUST follow: https://www.facebook.com/groups/[GROUPNAME]
+ABSOLUTELY DO NOT return links with "?ref=", "/posts/", etc.
+
+Format:
+Facebook Groups (public):
+• [Group Name] – [link] (Fully Verified Public Group – Login NOT required)
+
+Reddit Communities:
+• r/[SubName] – [link]
+
+────────────────────────────────
+OPERATION FLOW
+────────────────────────────────
+Every time the user provides a city:
+1. Show Privacy Notice
+2. Produce 3–5 community news items (Rules applied)
+3. Give graphic idea + AI prompt for each
+4. Provide extra generic city graphic prompts
+5. Provide 3–5 verified public Facebook group links
+6. Provide 2–4 public Reddit community links
+7. End with closing phrase.
+
+NEVER ask clarifying questions. NEVER delay. ALWAYS produce the full output immediately using the provided Search Data.
 
 ====================
-RAW INPUT & SEARCH DATA:
+LIVE SEARCH DATA (USE THIS TO FIND THE NEWS/LINKS):
 ====================
 {user_raw_input}
 """
@@ -95,7 +165,8 @@ AGENT_ROLES = {
     "Simon-AI Home Valuation": SIMON_PROMPT,
     "Bob-Inspection Reviewer": BOB_PROMPT,
     "Ava-Property Story Generator": AVA_PROMPT,
-    "Karina-Lead Finder": KARINA_PROMPT
+    "Karina-Lead Finder": KARINA_PROMPT,
+    "Troy-Community News": TROY_PROMPT
 }
 
 # --- UTILITY FUNCTIONS ---
@@ -109,23 +180,28 @@ def extract_text_from_pdf(uploaded_file):
     except Exception as e:
         return f"Error reading PDF: {e}"
 
-# --- FUNCIÓN DE BÚSQUEDA WEB PARA KARINA (VERSIÓN SEGURA) ---
+# --- WEB SEARCH FUNCTION (SAFE VERSION) ---
 def perform_web_search(query):
-    """Usa DuckDuckGo para buscar foros reales."""
+    """Uses DuckDuckGo to find real information."""
     try:
-        # Importamos DENTRO de la función para atrapar el error si falla
         from langchain_community.tools import DuckDuckGoSearchRun
         search = DuckDuckGoSearchRun()
         
-        enhanced_query = f"site:reddit.com OR site:quora.com OR site:biggerpockets.com OR site:city-data.com {query} real estate moving relocation"
+        # Determine search strategy based on query context
+        if "facebook" in query.lower() or "reddit" in query.lower():
+             # Strategy for finding groups
+             enhanced_query = f"{query}"
+        else:
+             # Strategy for finding news (Default)
+             enhanced_query = f"{query} news development opening businesses events last 6 months"
+             
         results = search.run(enhanced_query)
         return results
         
     except ImportError:
-        # ESTO EVITA LA PANTALLA ROJA
-        return "⚠️ AVISO: No se pudo conectar a internet (Falta librería duckduckgo-search). Karina usará su conocimiento interno."
+        return "⚠️ NOTICE: Web search unavailable (Missing library). Using internal knowledge."
     except Exception as e:
-        return f"Error en la búsqueda: {e}"
+        return f"Search Error: {e}"
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -136,7 +212,6 @@ with st.sidebar:
     selected_agent = st.radio("Agent:", available_agents)
     st.markdown("---")
     
-    # BOB LOGIC
     uploaded_file_content = None
     if "Bob" in selected_agent:
         st.info("📂 Bob requires the inspection report.")
@@ -153,7 +228,8 @@ with st.sidebar:
 llm = ChatGoogleGenerativeAI(
     model="gemini-2.0-flash",
     google_api_key=GOOGLE_API_KEY,
-    temperature=0.7 if ("Ava" in selected_agent or "Karina" in selected_agent) else 0.1, 
+    # Ava, Karina, and Troy need Creativity (0.7). Simon/Bob/Max need Precision (0.1).
+    temperature=0.7 if any(x in selected_agent for x in ["Ava", "Karina", "Troy"]) else 0.1, 
     convert_system_message_to_human=True
 )
 
@@ -201,48 +277,50 @@ if prompt := st.chat_input(f"Message to {selected_agent}..."):
         base_prompt = AGENT_ROLES.get(selected_agent, "You are a helpful Real Estate AI Assistant.")
         messages_payload = []
         
-        # --- LOGIC FOR AGENTS WITH PLACEHOLDERS ---
+        # --- AGENT SPECIFIC LOGIC ---
+        
         if "Ava" in selected_agent:
             full_system_msg = base_prompt.replace("{user_raw_input}", prompt)
             messages_payload = [SystemMessage(content=full_system_msg)]
             
         elif "Karina" in selected_agent:
-            # --- LÓGICA ESPECIAL DE KARINA: BÚSQUEDA WEB REAL ---
+            # KARINA: SEARCH FOR DISCUSSIONS
             status_placeholder = st.empty()
-            status_placeholder.info(f"🔎 Karina is scanning the web for: {prompt}...")
+            status_placeholder.info(f"🔎 Karina is scanning for discussions in: {prompt}...")
             
-            # 1. Ejecutamos la búsqueda
-            search_results = perform_web_search(prompt)
+            search_results = perform_web_search(f"site:reddit.com OR site:quora.com {prompt} real estate moving")
             status_placeholder.empty()
             
-            # 2. Preparamos el Prompt del Sistema (Instrucciones)
-            # Reemplazamos el placeholder para que no quede texto suelto
-            system_instructions = base_prompt.replace("{user_raw_input}", "PLEASE ANALYZE THE USER INPUT BELOW.")
-            
-            # 3. Construimos el Mensaje del Usuario (Con la data real)
-            # AQUÍ ESTÁ EL ARREGLO: Ponemos los resultados en el HumanMessage, no solo en el System.
-            full_user_message = f"""
-            MY SEARCH QUERY: {prompt}
-            
-            REAL TIME WEB SEARCH RESULTS FOUND:
-            {search_results}
-            
-            Please find the leads based on these results.
-            """
-            
-            # 4. Enviamos AMBOS mensajes (Sistema + Humano) para que Gemini no falle
-            messages_payload = [
-                SystemMessage(content=system_instructions),
-                HumanMessage(content=full_user_message)
-            ]
-            
+            system_instructions = base_prompt.replace("{user_raw_input}", "ANALYZE SEARCH RESULTS BELOW")
+            full_user_message = f"USER QUERY: {prompt}\n\nSEARCH RESULTS:\n{search_results}"
+            messages_payload = [SystemMessage(content=system_instructions), HumanMessage(content=full_user_message)]
+
+        elif "Troy" in selected_agent:
+            # TROY: SEARCH FOR NEWS & GROUPS
+            if prompt.lower().strip() == "hello" or prompt.lower().strip() == "hi":
+                # Si solo saluda, mostramos el mensaje de bienvenida sin buscar
+                 messages_payload = [SystemMessage(content=base_prompt), HumanMessage(content=prompt)]
+            else:
+                status_placeholder = st.empty()
+                status_placeholder.info(f"🗞️ Troy is gathering community news for: {prompt}...")
+                
+                # Troy hace 2 búsquedas: Una para noticias, otra para grupos
+                news_results = perform_web_search(f"{prompt} community news new business opening events")
+                social_results = perform_web_search(f"site:facebook.com/groups {prompt} public group")
+                
+                combined_results = f"NEWS RESULTS:\n{news_results}\n\nFACEBOOK/REDDIT RESULTS:\n{social_results}"
+                status_placeholder.empty()
+                
+                system_instructions = base_prompt.replace("{user_raw_input}", "ANALYZE LIVE DATA BELOW")
+                full_user_message = f"TARGET CITY: {prompt}\n\nLIVE WEB SEARCH DATA:\n{combined_results}"
+                messages_payload = [SystemMessage(content=system_instructions), HumanMessage(content=full_user_message)]
+
         else:
-            # Simon, Bob follow-up, others
+            # Standard Logic
             messages_payload = [SystemMessage(content=base_prompt)] + st.session_state[f"history_{selected_agent}"]
 
         try:
             response = llm.invoke(messages_payload)
-            
             if "Simon" in selected_agent:
                  message_placeholder.markdown(f'<div class="simon-report-table">{response.content}</div>', unsafe_allow_html=True)
             else:
@@ -254,8 +332,8 @@ if prompt := st.chat_input(f"Message to {selected_agent}..."):
 
 # Welcome Messages
 if "Ava" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
-    st.info("👋 Hi, I'm Ava. Please provide the property details.")
+    st.info("👋 Hi, I'm Ava. Send me property details.")
 if "Karina" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
-    st.info("👋 Hi, I'm Karina. Enter a City and State (e.g., 'Austin, TX') and I'll find REAL discussion threads for you!")
-
-
+    st.info("👋 Hi, I'm Karina. Enter a City.")
+if "Troy" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
+    st.info("👋 Hi, I'm Troy. Enter a City to get Community Posts.")

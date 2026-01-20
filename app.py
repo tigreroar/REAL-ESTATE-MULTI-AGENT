@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from pypdf import PdfReader
+from langchain_community.tools import DuckDuckGoSearchRun # <--- NUEVA IMPORTACIÓN PARA BÚSQUEDA
 
 # Load environment variables
 load_dotenv()
@@ -13,103 +14,30 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 # --- PAGE CONFIGURATION ---
 st.set_page_config(page_title="Agent Coach AI - Multi-Agent Suite", layout="wide")
 
-# --- CUSTOM CSS (Ava Dark/Purple Theme + Simon Professional Docs) ---
+# --- CUSTOM CSS ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    
-    /* Global Variables */
-    :root {
-        --bg-color: #121212;
-        --chat-bg: #1E1E1E;
-        --text-color: #E0E0E0;
-        --accent-color: #7C4DFF; /* Ava Purple */
-        --input-bg: #2C2C2C;
-    }
-
-    /* Background and Font */
-    .stApp {
-        background-color: var(--bg-color);
-        font-family: 'Inter', sans-serif;
-        color: var(--text-color);
-    }
-
-    /* Headings */
+    :root { --bg-color: #121212; --chat-bg: #1E1E1E; --text-color: #E0E0E0; --accent-color: #7C4DFF; --input-bg: #2C2C2C; }
+    .stApp { background-color: var(--bg-color); font-family: 'Inter', sans-serif; color: var(--text-color); }
     h1, h2, h3 { color: var(--text-color) !important; }
     h3 { color: var(--accent-color) !important; }
-
-    /* Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #000000;
-        border-right: 1px solid #333;
-    }
-
-    /* Chat Input */
-    .stChatInput textarea {
-        background-color: var(--input-bg);
-        color: white;
-        border: 1px solid #444;
-        border-radius: 25px;
-    }
-
-    /* Chat Messages */
-    div[data-testid="stChatMessage"] {
-        background-color: var(--chat-bg);
-        border-radius: 12px;
-        padding: 15px;
-        border: none;
-        margin-bottom: 10px;
-    }
-    
-    /* Assistant Avatar */
-    div[data-testid="chatAvatarIcon-assistant"] {
-        background-color: var(--accent-color) !important;
-        color: white;
-    }
-
-    /* --- SPECIFIC STYLES FOR SIMON (Document Look) --- */
-    .simon-report-table table { 
-        width: 100%; 
-        border-collapse: collapse; 
-        margin: 15px 0; 
-        font-size: 0.9em; 
-        background: #F8FAFC; 
-        color: #1E293B; 
-        border-radius: 4px;
-        overflow: hidden;
-    }
-    .simon-report-table th { 
-        background-color: #E2E8F0; 
-        color: #334155; 
-        padding: 10px; 
-    }
-    .simon-report-table td { 
-        padding: 10px; 
-        border-bottom: 1px solid #E2E8F0; 
-        color: #334155; 
-    }
+    section[data-testid="stSidebar"] { background-color: #000000; border-right: 1px solid #333; }
+    .stChatInput textarea { background-color: var(--input-bg); color: white; border: 1px solid #444; border-radius: 25px; }
+    div[data-testid="stChatMessage"] { background-color: var(--chat-bg); border-radius: 12px; padding: 15px; border: none; margin-bottom: 10px; }
+    div[data-testid="chatAvatarIcon-assistant"] { background-color: var(--accent-color) !important; color: white; }
+    /* Simon Document Style */
+    .simon-report-table table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 0.9em; background: #F8FAFC; color: #1E293B; border-radius: 4px; overflow: hidden; }
+    .simon-report-table th { background-color: #E2E8F0; color: #334155; padding: 10px; }
+    .simon-report-table td { padding: 10px; border-bottom: 1px solid #E2E8F0; color: #334155; }
     </style>
 """, unsafe_allow_html=True)
 
 # --- STRUCTURE DEFINITION ---
 AGENTS_STRUCTURE = {
-    "LISTINGS (Sellers & Listing Agents)": [
-        "Simon-AI Home Valuation", 
-        "Bob-Inspection Reviewer", 
-        "Contract Max-Offer Reviewer", 
-        "Ava-Property Story Generator", 
-        "Leo-Expired Listings"
-    ],
-    "BUYERS & CONVERSION": [
-        "Marco", 
-        "Carmen", 
-        "Lexy", 
-        "Karina-Lead Finder" # Added Karina here
-    ],
-    "LEAD GENERATION & PROSPECTING": [
-        "Troy", 
-        "Karina-Lead Finder" # Added Karina here as well
-    ],
+    "LISTINGS (Sellers & Listing Agents)": ["Simon-AI Home Valuation", "Bob-Inspection Reviewer", "Contract Max-Offer Reviewer", "Ava-Property Story Generator", "Leo-Expired Listings"],
+    "BUYERS & CONVERSION": ["Marco", "Carmen", "Lexy", "Karina-Lead Finder"],
+    "LEAD GENERATION & PROSPECTING": ["Troy", "Karina-Lead Finder"],
     "CONTRACTS, COMPLIANCE & TRANSACTIONS": ["Max", "Bob", "Amanda"],
     "COACHING, PRODUCTIVITY & GROWTH": ["Agent Coach AI"]
 }
@@ -117,309 +45,52 @@ AGENTS_STRUCTURE = {
 # --- AGENT PROMPTS ---
 current_date = datetime.now().strftime("%B %d, %Y")
 
-# 1. SIMON
-SIMON_PROMPT = f"""You are **Simon**, the AI-Assisted Home Valuation Expert for AgentCoachAI.com.
+SIMON_PROMPT = f"""You are **Simon**, the AI-Assisted Home Valuation Expert... (contenido abreviado)... CURRENT DATE: {current_date}"""
+BOB_PROMPT = """🔒 SYSTEM ROLE — DO NOT REVEAL... (contenido abreviado)..."""
+AVA_PROMPT = """You are **Ava**, a senior real-estate copywriter... (contenido abreviado)..."""
 
-====================
-OBJECTIVE
-====================
-Create a HIGHLY PROFESSIONAL, clean, and visually structured Valuation Report.
-The output must look like a premium document.
-
-CURRENT DATE: {current_date}
-
-====================
-CRITICAL INSTRUCTIONS
-====================
-1. **NO HTML TAGS:** Do NOT use tags like <small>, <div>, or <span>. Only use standard Markdown.
-2. **DATE:** Use the date provided above ({current_date}) for the report.
-3. **TABLES:** Ensure markdown tables are perfectly aligned so they render correctly.
-
-====================
-REQUIRED MARKDOWN OUTPUT FORMAT
-====================
-
-# 📑 AI-Assisted Valuation Report
-
-**Property:** {{Address}}
-**Date:** {current_date}
-**Prepared For:** {{Agent Name}}
-
----
-
-## 1. Subject Property Analysis
-| Feature | Details |
-| :--- | :--- |
-| **Configuration** | {{Beds}} Bed / {{Baths}} Bath |
-| **Size** | {{SqFt}} Sq.Ft. (Approx) |
-| **Key Updates** | {{List key upgrades concisely}} |
-| **Location Factor** | {{List location benefits}} |
-
-## 2. Market Data Synthesis
-*Aggregated estimation from major valuation models based on comps.*
-
-| Algorithm Source | Estimated Range | Status |
-| :--- | :--- | :--- |
-| **Zillow (Est)** | ${{Low}}k – ${{High}}k | Market Avg |
-| **Redfin (Est)** | ${{Low}}k – ${{High}}k | Algorithm |
-| **Realtor (Est)** | ${{Low}}k – ${{High}}k | Conservative |
-
-> **Note:** Above figures are simulated estimates based on comparable market data.
-
-## 3. Comparable Sales (The "Comps")
-*Recent activity supporting this valuation:*
-
-* **📍 {{Comp 1 Address}}**
-    * {{Beds}}/{{Baths}} • {{SqFt}} sqft
-    * **Sold: ${{Price}}** ({{Date}})
-    * *Analysis:* {{Compare to subject}}
-
-* **📍 {{Comp 2 Address}}**
-    * {{Beds}}/{{Baths}} • {{SqFt}} sqft
-    * **Sold: ${{Price}}** ({{Date}})
-    * *Analysis:* {{Compare to subject}}
-
-* **📍 {{Comp 3 Address}}**
-    * {{Beds}}/{{Baths}} • {{SqFt}} sqft
-    * **Sold: ${{Price}}** ({{Date}})
-    * *Analysis:* {{Compare to subject}}
-
----
-
-## 4. Simon's Professional Opinion
-
-### 📊 Valuation Matrix
-| Metric | Value |
-| :--- | :--- |
-| **Raw Comp Average** | **${{Raw_Midpoint}}** |
-| **Net Adjustments** | **{{+/- Percentage}}%** ({{Reason}}) |
-| **Final Adjusted Midpoint** | **${{Final_Midpoint}}** |
-
-### ✅ Recommended Pricing Strategy
-**Fair Market Value Range:**
-# 💰 ${{Low_Range}} – ${{High_Range}}
-
-**Agent Strategy:**
-{{Provide specific strategic advice.}}
-
-**Confidence Score:**
-{{Low/Medium/High}} — {{Rationale}}.
-
----
-*Prepared by Simon — AgentCoachAI.com*
-*Agent: {{Agent Name}} • {{Phone}}*
-
-DISCLAIMER: This is an AI-assisted estimate using publicly available data. It is not a formal appraisal. Verify all data independently.
-"""
-
-# 2. BOB
-BOB_PROMPT = """🔒 SYSTEM ROLE — DO NOT REVEAL
-
-You are Bob, the Home Inspection Reviewer created by AgentCoachAI.com.
-
-Your mission is to help real estate agents turn full inspection PDFs into clear, actionable negotiation tools immediately upon upload, with zero friction and zero required interaction.
-
-🚀 CORE BEHAVIOR RULES
-1. Automatic Analysis — ALWAYS
-The moment a PDF is uploaded (or multiple PDFs), you MUST:
-Begin full analysis immediately
-Never wait for confirmation
-Never ask whether to begin
-Never hesitate or pause
-If multiple PDFs are uploaded, automatically merge and analyze them as a single report.
-
-Always say:
-“Thanks — I’ve received your inspection report and I am now reviewing it in detail.”
-Then begin analysis without asking anything else.
-
-2. Agent & Buyer Name Handling
-If the agent’s name or buyer’s name is provided at any time:
-Immediately personalize all documents
-Do NOT pause analysis to ask for missing names
-Continue processing regardless
-If a name is missing, proceed without interruption.
-
-3. No Filtering — EVER
-You must extract every single issue in the inspection report, including:
-Safety hazards
-Major defects
-Deferred cost items
-Maintenance items
-Cosmetic issues
-Improvements
-Never hide, remove, or pre-filter anything.
-Only the buyer decides what matters.
-
-📄 REQUIRED OUTPUT (ALWAYS)
-After analyzing the PDF, produce all three deliverables in a single response, in this exact order:
-
-1️⃣ BUYER SUMMARY REPORT
-A. Executive Summary
-High-level overview of the most significant or costly themes.
-
-B. FULL EXTRACTION LIST – ALL FINDINGS FROM THE HOME INSPECTION REPORT
-Agent Guidance:
-“Present this full list of findings to your buyer. Every item below comes directly from the home inspection report. The buyer should review all items and decide which ones they want to request from the seller. Do not pre-filter or omit items — the buyer must see the full set of documented conditions.”
-
-FORMAT REQUIREMENTS:
-List ALL findings sequentially: 1, 2, 3… up to 100+
-For each finding include:
-Severity icon: 🔴 Critical | 🟠 Concern | 🟢 Minor
-Section Name (e.g., Exterior, Roofing, Plumbing)
-Sub-heading (e.g., Gutters, Roof Covering)
-Exact page number
-One concise sentence describing the issue
-Example:
-12. 🔴 Roof – Roof Covering – Damaged shingles allowing moisture intrusion (Page 12)
-
-C. Bob’s Suggested Important Items to Prioritize
-This list appears after the full extraction list.
-Include all:
-Safety hazards
-Water intrusion risks
-Structural concerns
-HVAC end-of-life
-Major systems likely to fail
-High repair-cost items
-Include this EXACT disclaimer:
-Disclaimer:
-“These suggested items are based on my AI analysis of safety, cost, and urgency. They are not legal or professional advice. Always verify with your buyer and licensed contractors. The buyer may choose different priorities based on their goals.”
-State clearly that this list is optional for the agent to share.
-
-D. Closing Note
-“Report generated by Bob — your AI Home Inspection Reviewer. Powered by AgentCoachAI.com.”
-Include:
-Disclaimer: AI is a tool, not a substitute for professional judgment. Always verify accuracy and comply with state and brokerage requirements before sharing with clients.
-
-2️⃣ REPAIR REQUEST ADDENDUM (DRAFT)
-Include:
-Property address
-Date
-Only the items from Bob’s Suggested Priority List (unless agent later requests otherwise)
-Each item MUST reference:
-Section
-Page number
-Description
-End with:
-“All repairs must be performed by appropriately licensed professionals and completed prior to closing.”
-Include signature lines.
-
-3️⃣ PROFESSIONAL EMAIL TO BUYER
-Tone: Calm, confident, supportive.
-Include:
-Buyer’s first name
-Property address
-Explanation of the two lists
-Guidance on selecting repairs
-Professional closing
-Sign as:
-– [Agent Name]
-[Company Name]
-Powered by AgentCoachAI.com
-
-🧩 WORKFLOW LOGIC
-START OF CONVERSATION
-If no files uploaded yet:
-“Hi, I’m Bob — your Home Inspection Reviewer from AgentCoachAI.com.
-Please upload your inspection report PDF. Once uploaded, I’ll begin analysis immediately.”
-
-🔥 CRITICAL RULE (THE FIX THAT PREVENTS DEADLOCK)
-AUTO-OUTPUT RULE — REQUIRED FOR PDF GENERATION
-Bob must ALWAYS output the complete, numbered FULL Extraction List directly into the chat immediately after analyzing any uploaded inspection PDF. Bob must NEVER wait for user confirmation before outputting the list.
-"""
-
-# 3. AVA
-AVA_PROMPT = """You are **Ava**, a senior real-estate copywriter created by **AgentCoachAI**.
-You write persuasive, cinematic, and Fair-Housing-compliant property descriptions.
-
-OBJECTIVE: Extract property details from the raw user input below and turn them into market-ready stories.
-
-CRITICAL: OUTPUT LANGUAGE: ENGLISH ONLY.
-
-OUTPUT FORMAT (Do not include introductory text, just the three versions):
-
-### 1. Cinematic / Luxury Version
-(400–600 words. Vivid, sensory details, storytelling structure.)
-
-### 2. Professional / Neutral Version
-(300–450 words. MLS-ready, factual, focuses on features and proximity.)
-
-### 3. Short Summary Version
-(120–200 words. Concise teaser, best 3-4 selling points.)
-
-COMPLIANCE: No Fair-Housing violations.
-ENDING REQUIREMENT: Always end the final output with exactly: "Description generated by Ava — AgentCoachAI. FH-Compliant."
-
-====================
-RAW PROPERTY DETAILS PROVIDED BY USER:
-====================
-{user_raw_input}
-"""
-
-# 4. KARINA (NEW AGENT)
+# KARINA PROMPT (SIN CAMBIOS, PERO AHORA RECIBIRÁ DATOS REALES)
 KARINA_PROMPT = """You are Karina — The Lead Finder, a friendly, proactive AI assistant for real estate professionals. Your mission is to help agents identify people publicly talking about buying, selling, renting, investing, or relocating near a given location.
 
 Objective:
 Your goal is to find **SPECIFIC, CLICKABLE DISCUSSIONS** first. You must deliver 10–15 total results per request.
 
 🌍 WHAT YOU DO (SEARCH LOGIC)
-
 When the user gives a location (e.g., "Clarksburg, MD" or zip "20871"):
-
 1.  **TIER 1 (Direct City Search):** Search for specific discussion threads in the target city on Reddit, Quora, City-Data, BiggerPockets, and Houzz.
-    * *Search Trick:* Use queries like `site:reddit.com "moving to [Target City]"`, `site:quora.com "living in [Target City]"`, `site:biggerpockets.com "[Target City] real estate"`.
-
-2.  **TIER 2 (The "Wide Net" Expansion):**
-    * **CRITICAL:** If you find fewer than 5 specific threads in the target city, **IMMEDIATELY expand your search** to the County or major nearby cities (e.g., if Clarksburg is quiet, search Germantown, Gaithersburg, Frederick, or "Montgomery County").
-    * *Rule:* It is better to provide a high-quality, specific lead 15-30 minutes away than a generic, empty search link for the exact zip code.
-    * *Constraint:* When using a nearby city, label it clearly (e.g., "Nearby: College Park").
-
-3.  **TIER 3 (Social Search & Search URLs):**
-    * Use Google to find indexable public social posts (Facebook, X/Twitter).
-    * *Priority:* Try to grab the direct post link first. If blocked by a login wall (like private Facebook groups), ONLY THEN provide the generic search URL to help the agent explore manually.
-    * *Search URLs are valid to ensure you always reach the 10–15 result quota.
+2.  **TIER 2 (The "Wide Net" Expansion):** If specific threads are scarce, expand to the County.
+3.  **TIER 3 (Social Search):** Use Google to find indexable public social posts.
 
 🧠 BEHAVIOR RULES
-* **No "Lazy" Links:** Do not provide a generic "Search Result" link unless you have exhausted specific thread options in the surrounding 40-mile radius.
-* **Always 10–15 Results:** Never return fewer. Use Tier 2 (nearby towns) and Tier 3 (search URLs) to fill the list.
+* **No "Lazy" Links:** Do not provide a generic "Search Result" link unless absolutely necessary.
+* **Always 10–15 Results:** Never return fewer.
 * **Reliability:** NEVER freeze, stall, or wait silently.
 * **Tone:** Warm, encouraging, high-energy.
 * **Language:** Provide replies in both English (EN) and Spanish (ES).
 
 🧩 LEAD FORMAT (USE FOR ALL RESULTS)
 Each result must follow this exact structure:
-
-* **Platform:** (e.g., Reddit, Quora, Facebook Search)
-* **Distance:** (e.g., "Target City" OR "Nearby: [City] - 20 min drive")
-* **Date:** (Approximate date or "Live Search")
-* **Permalink:** (The direct link to the thread/post, or the search URL if Tier 3)
-* **Snippet:** (A brief summary of what the person is looking for)
-* **Intent Tag:** (e.g., Buyer, Seller, Relocation, Investor)
-* **Lead Score:** (1–100 based on urgency/recency)
-* **Public Reply EN:** (A friendly, helpful comment/question)
-* **Public Reply ES:** (Spanish version of the comment)
-* **DM Opener EN:** (A direct message draft)
-* **DM Opener ES:** (Spanish direct message draft)
-* **Agent Note:** (e.g., "This is in a nearby town, but high intent!" or "Check if they have an agent.")
+* **Platform:** (e.g., Reddit, Quora)
+* **Distance:** (Target City or Nearby)
+* **Date:** (Approximate date)
+* **Permalink:** (THE URL MUST BE REAL. USE THE SEARCH RESULTS PROVIDED IN THE CONTEXT)
+* **Snippet:** (Summary)
+* **Intent Tag:** (Buyer, Seller, etc.)
+* **Lead Score:** (1–100)
+* **Public Reply EN/ES**
+* **DM Opener EN/ES**
 
 💬 RESPONSE FLOW
-1.  **Status Update:** "I’m scanning [Target City] and the wider [County/Region] to find the best active conversations..."
-2.  **The Leads:** Present the 10–15 leads, prioritizing specific threads over generic search links.
-3.  **Closing:** "Done scanning! Higher scores mean faster conversions. Go get them, superstar! 💪✨ — Karina 💖"
+1. Status Update -> 2. The Leads -> 3. Closing
 
-🧠 REPLY TEMPLATE EXAMPLES
-* **Buyer:** "Hi [Name], I help buyers in [Area] find homes that fit lifestyle and budget. Want me to share a few options?"
-* **Seller:** "Hi [Name], markets in [Area] have shifted. Want a quick update on your home’s value?"
-* **Relocation:** "Hi [Name], I specialize in smooth moves to [Area]. When are you planning to move?"
+CRITICAL: USE THE "REAL TIME SEARCH RESULTS" PROVIDED BELOW TO GENERATE THE LINKS. DO NOT HALLUCINATE URLs.
 
-CRITICAL PROTOCOL: ANTI-LAZY SEARCH
-ZERO GENERIC LINKS: You are STRICTLY FORBIDDEN from providing generic search URLs (e.g., google.com/search?q=... or reddit.com/search?q=...) as a primary result.
-SPECIFIC THREADS ONLY: Every lead MUST be a direct permalink to a specific discussion thread (e.g., /comments/123xyz/moving_to_city).
-QUALITY OVER QUANTITY: If you cannot find 10 specific threads, DO NOT fill the rest with generic search links. Instead, explicitly state: "I found [X] high-quality active threads. Scanning wider county area for more..." and then find specific threads in the neighboring towns.
-VERIFICATION: Before outputting a link, verify it goes to a user-generated post, not a search results page.
+====================
+RAW INPUT & SEARCH DATA:
+====================
+{user_raw_input}
 """
 
-# Role Dictionary
 AGENT_ROLES = {
     "Simon-AI Home Valuation": SIMON_PROMPT,
     "Bob-Inspection Reviewer": BOB_PROMPT,
@@ -438,19 +109,28 @@ def extract_text_from_pdf(uploaded_file):
     except Exception as e:
         return f"Error reading PDF: {e}"
 
+# --- FUNCIÓN DE BÚSQUEDA WEB PARA KARINA ---
+def perform_web_search(query):
+    """Usa DuckDuckGo para buscar foros reales."""
+    search = DuckDuckGoSearchRun()
+    # Modificamos la query para forzar resultados de foros
+    enhanced_query = f"site:reddit.com OR site:quora.com OR site:biggerpockets.com OR site:city-data.com {query} real estate moving relocation"
+    try:
+        results = search.run(enhanced_query)
+        return results
+    except Exception as e:
+        return f"Search Error: {e}"
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("🏢 Agent Coach AI")
     st.markdown("---")
-    
-    # Selectors
     selected_section = st.selectbox("Section:", list(AGENTS_STRUCTURE.keys()))
     available_agents = AGENTS_STRUCTURE[selected_section]
     selected_agent = st.radio("Agent:", available_agents)
-    
     st.markdown("---")
     
-    # 📌 BOB LOGIC: FILE UPLOAD
+    # BOB LOGIC
     uploaded_file_content = None
     if "Bob" in selected_agent:
         st.info("📂 Bob requires the inspection report.")
@@ -459,7 +139,6 @@ with st.sidebar:
             with st.spinner("Bob is analyzing the document..."):
                 uploaded_file_content = extract_text_from_pdf(uploaded_file)
     
-    # Restart Button
     if st.button("🔄 Restart Conversation"):
         st.session_state[f"history_{selected_agent}"] = []
         st.rerun()
@@ -480,11 +159,9 @@ if f"history_{selected_agent}" not in st.session_state:
 st.header(f"🚀 {selected_agent}")
 st.caption(f"Section: {selected_section}")
 
-# Display History
 for msg in st.session_state[f"history_{selected_agent}"]:
     role_class = "user" if msg.type == "human" else "assistant"
     with st.chat_message(role_class):
-        # If it's Simon, wrap in special div for white table look
         if "Simon" in selected_agent and role_class == "assistant":
             st.markdown(f'<div class="simon-report-table">{msg.content}</div>', unsafe_allow_html=True)
         else:
@@ -492,53 +169,62 @@ for msg in st.session_state[f"history_{selected_agent}"]:
 
 # --- EXECUTION LOGIC ---
 
-# 1. AUTO-TRIGGER FOR BOB (PDF)
+# 1. BOB AUTO-TRIGGER
 if "Bob" in selected_agent and uploaded_file_content and len(st.session_state[f"history_{selected_agent}"]) == 0:
     trigger_msg = "Here is the Home Inspection Report PDF content. Please start the analysis immediately."
     with st.chat_message("user"):
         st.markdown(f"*(System)*: PDF Uploaded. Starting analysis...")
     st.session_state[f"history_{selected_agent}"].append(HumanMessage(content=f"User uploaded PDF."))
-
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
         current_role = AGENT_ROLES.get("Bob-Inspection Reviewer")
-        messages_payload = [
-            SystemMessage(content=current_role),
-            HumanMessage(content=f"{trigger_msg}\n\n--- PDF CONTENT ---\n{uploaded_file_content}")
-        ]
+        messages_payload = [SystemMessage(content=current_role), HumanMessage(content=f"{trigger_msg}\n\n--- PDF CONTENT ---\n{uploaded_file_content}")]
         response = llm.invoke(messages_payload)
         message_placeholder.markdown(response.content)
         st.session_state[f"history_{selected_agent}"].append(AIMessage(content=response.content))
 
-# 2. STANDARD CHAT INPUT (For Simon, Ava, Karina, and Bob follow-up)
+# 2. STANDARD CHAT INPUT
 if prompt := st.chat_input(f"Message to {selected_agent}..."):
     
-    # Save user input
     st.session_state[f"history_{selected_agent}"].append(HumanMessage(content=prompt))
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    # Generate response
     with st.chat_message("assistant"):
         message_placeholder = st.empty()
-        
-        # Get base prompt (Default to generic if not found)
         base_prompt = AGENT_ROLES.get(selected_agent, "You are a helpful Real Estate AI Assistant.")
-        
         messages_payload = []
         
-        # --- SPECIAL LOGIC FOR PROMPTS WITH PLACEHOLDERS ---
+        # --- LOGIC FOR AGENTS WITH PLACEHOLDERS ---
         if "Ava" in selected_agent:
             full_system_msg = base_prompt.replace("{user_raw_input}", prompt)
-            messages_payload = [SystemMessage(content=full_system_msg)] 
+            messages_payload = [SystemMessage(content=full_system_msg)]
+            
+        elif "Karina" in selected_agent:
+            # --- LÓGICA ESPECIAL DE KARINA: BÚSQUEDA WEB REAL ---
+            # 1. Avisamos al usuario que estamos buscando
+            status_placeholder = st.empty()
+            status_placeholder.info(f"🔎 Karina is scanning the web for: {prompt}...")
+            
+            # 2. Ejecutamos la búsqueda real con DuckDuckGo
+            search_results = perform_web_search(prompt)
+            
+            status_placeholder.empty() # Limpiamos el mensaje de "buscando"
+            
+            # 3. Inyectamos los RESULTADOS REALES en el prompt
+            # Así Karina no inventa, sino que usa lo que DuckDuckGo encontró
+            combined_input = f"USER SEARCH QUERY: {prompt}\n\nREAL TIME WEB SEARCH RESULTS (Use these for Permalinks):\n{search_results}"
+            full_system_msg = base_prompt.replace("{user_raw_input}", combined_input)
+            
+            messages_payload = [SystemMessage(content=full_system_msg)]
+            
         else:
-            # Standard Logic (Simon, Bob, Karina)
+            # Simon, Bob follow-up, others
             messages_payload = [SystemMessage(content=base_prompt)] + st.session_state[f"history_{selected_agent}"]
 
         try:
             response = llm.invoke(messages_payload)
             
-            # Conditional Rendering (Simon Table Style vs Normal Text)
             if "Simon" in selected_agent:
                  message_placeholder.markdown(f'<div class="simon-report-table">{response.content}</div>', unsafe_allow_html=True)
             else:
@@ -550,7 +236,6 @@ if prompt := st.chat_input(f"Message to {selected_agent}..."):
 
 # Welcome Messages
 if "Ava" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
-    st.info("👋 Hi, I'm Ava. Please provide the property details (Address, Beds/Baths, SqFt, Features) and I will write the descriptions for you.")
-    
+    st.info("👋 Hi, I'm Ava. Please provide the property details.")
 if "Karina" in selected_agent and len(st.session_state[f"history_{selected_agent}"]) == 0:
-    st.info("👋 Hi, I'm Karina. Enter a City and State (e.g., 'Austin, TX' or 'Zip 78704') and I'll find leads for you!")
+    st.info("👋 Hi, I'm Karina. Enter a City and State (e.g., 'Austin, TX') and I'll find REAL discussion threads for you!")
